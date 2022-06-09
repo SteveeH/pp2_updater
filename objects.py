@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 import copy
 import math
+
+from datetime import datetime
 from typing import List
 
 
@@ -17,7 +19,9 @@ class Point:
         self.z = z
         self.hmax = hmax
         self.hmin = hmin
-        self.sta = 0
+        self.sta = None          # staniceni
+        self.normal_dist = None  # kolma vzdalenost k linii
+        self.cls_axis_id = None  # ID nejblizsiho bodu na ose
 
     @staticmethod
     def process_input(input_str) -> Point:
@@ -49,49 +53,21 @@ class Point:
             raise "Vzdalenost muze byt vypoctena poze mezi dvemi instancemi Point"
         return math.sqrt((point.x - self.x)**2 + (point.y - self.y)**2)
 
-    """ def line_normal_point(self, line: Line | Axis) -> Point:
-        Nalezeni bodu na linii odpovidajici kolmici k tomuto bodu
-
-        Args:
-            line (Line | Axis): linie na ktere se hleda kolmice
-
-        Returns:
-            Point: bod kolmice
-
-
-        # nalezeni dvou nejblizsich bodu linie
-        closest_points = [p[1] for p in line.find_closest_point(
-            self, 2)]
-        # serazeni podle ID
-        closest_points.sort(key=lambda p: p.id)
-
-        print("closest")
-        print(closest_points)
-
-        return closest_points
-
-    def p2l_dist(self, line: Line | Axis) -> float:
-
-        pass
-
-    def p_axis_sta(self, axis: Axis) -> float:
-        pass 
-    """
-
-    def get_point2line_info(self, line: Line | Axis) -> tuple(float, float):
-        """_summary_
+    def get_point2line_info(self, line: Line | Axis, previous_point: Point = None) -> tuple(float, float):
+        """
 
         Args:
             line (Line | Axis): _description_
 
         Returns:
-            stationing      (float) : staniceni bodu na linii
-            normal_distance (float) : orientovana velikost kolmice k bodu (+ vpravo || - vlevo)  
+            stationing          (float) : staniceni bodu na linii
+            normal_distance     (float) : orientovana velikost kolmice k bodu (+ vpravo || - vlevo)  
+            line_closest_point_id (int) : ID nejblizsiho bodu linie
         """
 
         # nalezeni dvou nejblizsich bodu linie
         closest_points = [p[1] for p in line.find_closest_point(
-            self, 2)]
+            self, 2, previous_point.cls_axis_id if isinstance(previous_point, Point) else None)]
         # serazeni podle ID
         closest_points.sort(key=lambda p: p.id)
 
@@ -101,10 +77,11 @@ class Point:
         fi = a_vec.angle(b_vec)
 
         #  vypocet informaci
+        line_closest_point_id = closest_points[0].id
         stationing = closest_points[0].sta + b_vec.d * math.cos(fi)
         normal_dist = -b_vec.d * math.sin(fi)
 
-        return stationing, normal_dist
+        return stationing, normal_dist, line_closest_point_id
 
     def __str__(self) -> str:
         return f"{self.id},{self.x:.4f},{self.y:.4f},{self.z:.4f},{self.hmax:.4f},{self.hmin:.4f}"
@@ -113,88 +90,129 @@ class Point:
         return f"Point__id__{self.id}"
 
 
-class Line:
+class Axis:
 
     def __init__(self, points: List[Point] = [], file_name: str = None) -> None:
+        # nazev
+        self.id = None
+        self.type = None
+        self.obj = None
+        self.position = 0
+        #
         self.points = points
         self.file_name = file_name
-        self._stat = (None, None)
+        self._sta = (None, None)
 
         if self.file_name is not None:
             self._process_input()
+
+        self.calc_axis_sta()
 
     def _process_input(self) -> None:
 
         if not os.path.exists(self.file_name):
             raise FileNotFoundError
 
+        self.get_name_data()
+
         self.points = []
         with open(self.file_name, "r") as file:
             for line in file.readlines():
                 try:
-                    self.points.append(Point.process_input(line))
+                    p = Point.process_input(line)
+                    p.cls_axis_id = p.id
+                    p.normal_dist = 0.0
+                    self.points.append(p)
                 except Exception as err:
                     print(
                         f"Data :: '{line}' v souboru ::  '{self.file_name}' nemohli byt ulozeny jako Point.\n{err}")
 
-    def calc_axis_sta(self, axis: Axis):
-        """ Priradi k jednotlivym bodum linie staniceni vztazene k prilozene ose
+    def get_name_data(self) -> None:
 
-        Args:
-            axis (Axis)
-        """
-        pass
+        _, name = os.path.split(self.file_name)
 
-    def get_line_position(self, axis: Axis) -> int:
-        """Pozice linie vuci ose:
+        self.id, self.type, self.obj = (name.split(".")[0]).split("_")
 
-        - -1  = linie je vlevo od osy
+    def calc_axis_sta(self) -> None:
 
-        -  0  = linie je totozna s osou nebo ma stejny pocet budu vlevo i vpravo
-
-        -  1  = linie je vpravo od osy
-
-        Args:
-            axis (Axis)
-
-        Returns:
-            int: -1 | 0 | 1
-        """
-        pass
-
-    def update_points(self):
-        pass
-
-    def find_closest_point(self, test_point: Point, count: int = 2) -> List[Point]:
-
-        tmp_list = []
-        # urceni vzdalenosti jednotlivych bodu linie -> [(12.11, Point), (13.22, Point), ...]
-        for line_point in self.points:
-            tmp_list.append((line_point.p2p_dist(test_point), line_point))
-
-        # serazeni bodu
-        tmp_list.sort(key=lambda tup: tup[0])
-
-        return tmp_list[0:count]
-
-
-class Axis(Line):
-
-    def calc_axis_sta(self):
         if len(self.points) < 2:
             print("Linie nema dostatek bodu")
             return (None, None)
+
+        self.points[0].sta = 0
 
         for idx in range(1, len(self.points)):
             self.points[idx].sta = self.points[idx - 1].sta + \
                 self.points[idx - 1].p2p_dist(self.points[idx])
 
-        self._stat = (self.points[0].sta, self.points[-1].sta)
-        return self._stat
+        self._sta = (self.points[0].sta, self.points[-1].sta)
 
-    def _process_input(self) -> None:
-        super()._process_input()
-        self.calc_axis_sta()
+    def find_closest_point(self, test_point: Point, instance_count: int = 2, cls_id_next_point: int = None, id_area: int = 5) -> List[Point]:
+        """Nalezeni nejblizsich vrcholu linie k zadanemu bodu
+
+        Args:
+            test_point (Point): Testovany bod
+            instance_count (int, optional): Pocet hledanych vrcholu. Defaultne 2.
+
+        Returns:
+            List[(float,Point), ...]: Nejblizsi vrcholy serazene podle vzdalenosti
+        """
+
+        tmp_list = []
+
+        # urceni vyhledavaciho okna
+        idx_start = 0
+        idx_end = -1
+
+        if cls_id_next_point is not None:
+
+            ts = cls_id_next_point - id_area
+            te = cls_id_next_point + id_area
+
+            idx_start = ts if ts > 0 else 0
+            idx_end = te if te < len(self.points) else -1
+
+        for line_point in self.points[idx_start:idx_end]:
+            tmp_list.append((line_point.p2p_dist(test_point), line_point))
+
+        # serazeni bodu podle vzdalenosti
+        tmp_list.sort(key=lambda tup: tup[0])
+
+        return tmp_list[0:instance_count]
+
+    def __repr__(self) -> str:
+        return f"{self.id}_{self.type.capitalize()}::({self._sta[0]:.3f},{self._sta[1]:.3f}) -- {'><' if self.position == 0 else ('vlevo' if self.position < 0 else 'vpravo' ) }"
+
+
+class Line(Axis):
+
+    def __init__(self, axis: Axis, points: List[Point] = [], file_name: str = None) -> None:
+        self.axis = axis
+        super().__init__(points, file_name)
+
+    def calc_axis_sta(self):
+
+        position = 0
+
+        for idx, line_point in enumerate(self.points):
+
+            sta, normal_dist, cls_axis_id = line_point.get_point2line_info(
+                self.axis, None if idx == 0 else self.points[idx - 1])
+
+            line_point.sta = sta
+            line_point.normal_dist = normal_dist
+            line_point.cls_axis_id = cls_axis_id
+
+            if normal_dist > 0:
+                position += 1
+            elif normal_dist < 0:
+                position -= 1
+            else:
+                # bod primo na ose
+                pass
+
+        self.position = position
+        self._sta = (self.points[0].sta, self.points[-1].sta)
 
 
 class Vector:
@@ -231,7 +249,7 @@ class Vector:
 
     def __mul__(self, other: int | float | Vector):
 
-        if isinstance(other, int):
+        if isinstance(other, (int, float)):
             new_vector = copy.deepcopy(self)
             new_vector.dx *= other
             new_vector.dy *= other
@@ -256,8 +274,29 @@ class Crosfall:
 
 if __name__ == "__main__":
 
+    start_time = datetime.utcnow()
+
+    folder_path = "test_data"
+
+    files = [os.path.join(folder_path, f)
+             for f in os.listdir(path=folder_path)]
+
+    f_axis = [f for f in files if "Axis" in f][0]
+
+    lines = []
+
+    axis = Axis(file_name=f_axis)
+
+    for line_file in [f for f in files if ("Axis" not in f and "Crossfall" not in f)]:
+        lines.append(Line(axis, file_name=line_file))
+
+    print(files)
+    print(f_axis)
+    print(lines)
+
+    """
     # Testing
-    """ 
+
     p = Point.process_input(
         "1,575504.78508,5022315.944132,203.217282,-0.15,0")
 
@@ -269,6 +308,13 @@ if __name__ == "__main__":
 
     a = Axis(file_name="test_data/1_Axis_L.txt")
 
+
+
+    l = Line(a, file_name="test_data/2_Fix_L.txt")
+    l = Line(a, file_name="test_data/2_Fix_L.txt")
+
+    print(repr(a))
+    print(repr(l))
     v = Vector(p, p2)
     v2 = Vector(p, p3)
 
@@ -280,7 +326,7 @@ if __name__ == "__main__":
 
     print(p.p2p_dist(p2))
 
-    print(a._stat) """
+    print(a._sta)
 
     a = Point.process_input("1,0,0,203.217282,-0.15,0")
     b = Point.process_input("2,1,0,203.217282,-0.15,0")
@@ -289,4 +335,8 @@ if __name__ == "__main__":
     v_ab = Vector(a, b)
     v_ax = Vector(a, x)
 
-    print(v_ab.angle(v_ax) * (180 / math.pi))
+    print(v_ab.angle(v_ax) * (180 / math.pi)) """
+
+    end_time = datetime.utcnow()
+
+    print(f"Vypocet trval {(end_time-start_time).total_seconds():.1f} vterin")
