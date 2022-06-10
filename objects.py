@@ -102,6 +102,7 @@ class Axis:
         self.points = points
         self.file_name = file_name
         self._sta = (None, None)
+        self.is_changed = False
 
         if self.file_name is not None:
             self._process_input()
@@ -132,6 +133,11 @@ class Axis:
         _, name = os.path.split(self.file_name)
 
         self.id, self.type, self.obj = (name.split(".")[0]).split("_")
+
+    def has_point_range(self, _range: tuple) -> bool:
+
+        return any([self._sta[0] <= _range[0] < self._sta[1],
+                    self._sta[0] < _range[1] <= self._sta[1]])
 
     def calc_axis_sta(self) -> None:
 
@@ -180,8 +186,33 @@ class Axis:
 
         return tmp_list[0:instance_count]
 
+    def change_point_data(self, _range: tuple, hmax: float, hmin: float) -> None:
+
+        changed_points = 0
+
+        for point in self.points:
+
+            if _range[0] <= point.sta <= _range[1]:
+                point.hmax = hmax
+                point.hmin = hmin
+                changed_points += 1
+
+        if changed_points > 0:
+            ##print(f"Zmeneno {changed_points} bodu")
+            self.is_changed = True
+
+    def save(self):
+
+        # TODO: zalohovat original
+
+        path, _ = os.path.splitext(self.file_name)
+
+        with open(f"{path}_updated.txt", "w") as w_file:
+            for p in self.points:
+                w_file.write(f"{p}\n")
+
     def __repr__(self) -> str:
-        return f"{self.id}_{self.type.capitalize()}::({self._sta[0]:.3f},{self._sta[1]:.3f}) -- {'><' if self.position == 0 else ('vlevo' if self.position < 0 else 'vpravo' ) }"
+        return f"{self.id}_{self.type.capitalize()}_({self._sta[0]:.3f},{self._sta[1]:.3f})_{'><' if self.position == 0 else ('LEFT' if self.position < 0 else 'RIGHT' ) }"
 
 
 class Line(Axis):
@@ -269,7 +300,9 @@ class Vector:
 
 class Crosfall:
     """ asi nebude zatim potreba """
-    pass
+
+    def __init__(self, file_name: str = None) -> None:
+        self.file_name = file_name
 
 
 if __name__ == "__main__":
