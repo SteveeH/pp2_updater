@@ -1,6 +1,5 @@
 import os
 import argparse
-from art import *
 from updater import Updater
 
 
