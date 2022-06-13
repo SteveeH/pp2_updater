@@ -12,12 +12,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: PyInstaller Windows
-        uses: JackMcKew/pyinstaller-action-windows@main
-        with:
-          path: .
-
+      - name: Install dependencies
+        run: pip3 install -r requirements.txt
+      - name: Package Application - Pyinstaller
+        run: pyinstaller pp2_updater.spec
+      - name: Copy FILES
+        run: cp -t ./dist/ README.md
       - uses: actions/upload-artifact@v2
         with:
-          name: pp2_updater
+          name: PP2_UPDATER
           path: ./dist/

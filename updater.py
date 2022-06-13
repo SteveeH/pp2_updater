@@ -1,4 +1,3 @@
-from msilib.schema import Error
 import os
 from typing import List
 from objects import Axis, Line, Crosfall
@@ -53,12 +52,16 @@ class Updater:
         user_input = ""
         self.load_project()
 
-        while user_input.capitalize() not in ["N", "NO"]:
-            self.process_data()
-            user_input = input(
-                "Chcete pokracovat zadani dalsi oblasti: [y/n] : ")
+        try:
+            while user_input.capitalize() not in ["N", "NO"]:
+                self.process_data()
+                user_input = input(
+                    "Chcete pokracovat zadani dalsi oblasti: [y/n] : ")
 
-        self.save_changed_lines()
+            self.save_changed_lines()
+
+        except KeyboardInterrupt:
+            print("PP2_updater proces byl ukoncen uzivatelem")
 
     def process_data(self) -> None:
 
